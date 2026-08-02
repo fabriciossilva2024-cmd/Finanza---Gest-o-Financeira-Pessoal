@@ -1,0 +1,772 @@
+import React, { createContext, useContext, useState, useEffect } from 'react';
+import {
+  User,
+  Income,
+  Expense,
+  Goal,
+  Budget,
+  NotificationItem,
+  ThemeMode,
+  ActiveTab,
+  AIMessage,
+  ExpenseCategory,
+} from '../types';
+import {
+  supabase,
+  isSupabaseConfigured,
+  toUser,
+  toIncome,
+  toExpense,
+  toGoal,
+  toBudget,
+  toNotification,
+} from '../lib/supabase';
+
+interface FinancialContextType {
+  user: User;
+  setUser: React.Dispatch<React.SetStateAction<User>>;
+  theme: ThemeMode;
+  toggleTheme: () => void;
+  activeTab: ActiveTab;
+  setActiveTab: (tab: ActiveTab) => void;
+
+  // Loading state
+  isLoading: boolean;
+  isSupabaseConnected: boolean;
+  loadError: string | null;
+
+  // Data lists
+  incomes: Income[];
+  expenses: Expense[];
+  goals: Goal[];
+  budgets: Budget[];
+  notifications: NotificationItem[];
+
+  // Actions - Income
+  addIncome: (income: Omit<Income, 'id' | 'userId'>) => void;
+  updateIncome: (id: string, updated: Partial<Income>) => void;
+  deleteIncome: (id: string) => void;
+
+  // Actions - Expense
+  addExpense: (expense: Omit<Expense, 'id' | 'userId'>) => void;
+  updateExpense: (id: string, updated: Partial<Expense>) => void;
+  deleteExpense: (id: string) => void;
+
+  // Actions - Goals
+  addGoal: (goal: Omit<Goal, 'id' | 'userId'>) => void;
+  updateGoal: (id: string, updated: Partial<Goal>) => void;
+  depositGoal: (id: string, amount: number) => void;
+  deleteGoal: (id: string) => void;
+
+  // Actions - Budgets
+  setBudgetLimit: (category: ExpenseCategory, limit: number) => void;
+
+  // Actions - Notifications
+  markNotificationRead: (id: string) => void;
+  clearAllNotifications: () => void;
+
+  // Filters & Period selection
+  selectedMonthYear: string; // "YYYY-MM"
+  setSelectedMonthYear: (monthYear: string) => void;
+
+  // AI Assistant
+  aiMessages: AIMessage[];
+  isAiLoading: boolean;
+  askAiAssistant: (question: string) => Promise<void>;
+  aiInsights: string[];
+  refreshAiInsights: () => Promise<void>;
+
+  // Calculated Metrics
+  totalIncomeMonth: number;
+  totalExpenseMonth: number;
+  currentBalance: number;
+  accumulatedSavings: number;
+  savingsRatePercentage: number;
+  projectedFutureBalance: number;
+  topExpenseCategory: string;
+  categoryExpensesMonth: Record<string, number>;
+
+  // Reset data
+  resetDemoData: () => void;
+}
+
+const FinancialContext = createContext<FinancialContextType | undefined>(
+  undefined
+);
+
+const LOCAL_STORAGE_KEY_PREFIX = 'finanza_app_v1_';
+
+// --- Payload builders (partial update -> snake_case DB columns) ---
+const incomeUpdatePayload = (u: Partial<Income>) => {
+  const p: Record<string, unknown> = {};
+  if (u.description !== undefined) p.description = u.description;
+  if (u.amount !== undefined) p.amount = u.amount;
+  if (u.type !== undefined) p.type = u.type;
+  if (u.date !== undefined) p.date = u.date;
+  if (u.isRecurring !== undefined) p.is_recurring = u.isRecurring;
+  if (u.notes !== undefined) p.notes = u.notes ?? null;
+  return p;
+};
+
+const expenseUpdatePayload = (u: Partial<Expense>) => {
+  const p: Record<string, unknown> = {};
+  if (u.description !== undefined) p.description = u.description;
+  if (u.amount !== undefined) p.amount = u.amount;
+  if (u.category !== undefined) p.category = u.category;
+  if (u.type !== undefined) p.type = u.type;
+  if (u.date !== undefined) p.date = u.date;
+  if (u.notes !== undefined) p.notes = u.notes ?? null;
+  return p;
+};
+
+const goalUpdatePayload = (u: Partial<Goal>) => {
+  const p: Record<string, unknown> = {};
+  if (u.name !== undefined) p.name = u.name;
+  if (u.targetAmount !== undefined) p.target_amount = u.targetAmount;
+  if (u.currentAmount !== undefined) p.current_amount = u.currentAmount;
+  if (u.deadline !== undefined) p.deadline = u.deadline;
+  if (u.category !== undefined) p.category = u.category;
+  return p;
+};
+
+export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({
+  children,
+}) => {
+  // Theme state
+  const [theme, setTheme] = useState<ThemeMode>(() => {
+    const saved = localStorage.getItem(`${LOCAL_STORAGE_KEY_PREFIX}theme`);
+    return (saved as ThemeMode) || 'light';
+  });
+
+  // Active Tab state
+  const [activeTab, setActiveTab] = useState<ActiveTab>('dashboard');
+
+  // Selected Period "YYYY-MM"
+  const [selectedMonthYear, setSelectedMonthYear] = useState<string>(() => {
+    const today = new Date();
+    const y = today.getFullYear();
+    const m = String(today.getMonth() + 1).padStart(2, '0');
+    return `${y}-${m}`;
+  });
+
+  // Loading / connection state
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [isHydrated, setIsHydrated] = useState<boolean>(false);
+  const [isSupabaseConnected, setIsSupabaseConnected] = useState<boolean>(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+
+  // Data state (começa vazio — dados vêm do Supabase)
+  const [user, setUser] = useState<User>({
+    id: '',
+    name: 'Carregando...',
+    email: '',
+  });
+  const [incomes, setIncomes] = useState<Income[]>([]);
+  const [expenses, setExpenses] = useState<Expense[]>([]);
+  const [goals, setGoals] = useState<Goal[]>([]);
+  const [budgets, setBudgets] = useState<Budget[]>([]);
+  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+
+  // AI Chat Messages state
+  const [aiMessages, setAiMessages] = useState<AIMessage[]>([
+    {
+      id: 'msg_welcome',
+      sender: 'assistant',
+      text: 'Olá! Sou o **Finanza AI**, seu assistente de finanças pessoais. Posso analisar suas receitas, despesas e metas para responder perguntas como:\n- "Quanto gastei este mês?"\n- "Onde posso economizar mais?"\n- "Qual é a previsão do meu saldo futuro?"\n\nComo posso te ajudar hoje?',
+      timestamp: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+    },
+  ]);
+  const [isAiLoading, setIsAiLoading] = useState<boolean>(false);
+  const [aiInsights, setAiInsights] = useState<string[]>([
+    '💡 **Superávit Positivo**: Suas receitas superam as despesas neste mês. Mantenha os aportes nas suas metas!',
+    '📊 **Alerta de Alimentação**: A categoria Alimentação é o seu segundo maior gasto do mês.',
+    '🎯 **Metas em Foco**: Falta apenas R$ 7.500,00 para atingir sua Reserva de Emergência!',
+  ]);
+
+  // Sync theme to LocalStorage + <html>
+  useEffect(() => {
+    localStorage.setItem(`${LOCAL_STORAGE_KEY_PREFIX}theme`, theme);
+    if (theme === 'dark') {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+  }, [theme]);
+
+  // Persist user profile changes to Supabase after initial hydration
+  useEffect(() => {
+    if (!isHydrated || !user.id) return;
+    supabase
+      .from('users')
+      .update({
+        name: user.name,
+        email: user.email,
+        avatar_url: user.avatarUrl ?? null,
+        monthly_income_goal: user.monthlyIncomeGoal ?? null,
+      })
+      .eq('id', user.id)
+      .then(({ error }) => {
+        if (error) console.error('Erro ao salvar perfil:', error);
+      });
+  }, [user, isHydrated]);
+
+  // Load data from Supabase on mount
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadData = async () => {
+      try {
+        if (!isSupabaseConfigured) {
+          setLoadError(
+            'Banco de dados não configurado. Preencha VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY no arquivo .env'
+          );
+          return;
+        }
+
+        // 1) Garantir sessão (login anônimo)
+        let authUserId: string | undefined;
+        const { data: sessionData } = await supabase.auth.getUser();
+        authUserId = sessionData.user?.id;
+
+        if (!authUserId) {
+          const { data: anonData, error: anonError } =
+            await supabase.auth.signInAnonymously();
+          if (anonError) {
+            setLoadError(
+              'Falha ao entrar no banco. Verifique se "Sign In > Anonymous" está habilitado no Supabase (Authentication > Providers).'
+            );
+            return;
+          }
+          authUserId = anonData.user?.id;
+        }
+
+        if (!authUserId) throw new Error('Autenticação não retornou usuário.');
+
+        // 2) Obter ou criar o perfil do usuário
+        let { data: userRow } = await supabase
+          .from('users')
+          .select('*')
+          .eq('id', authUserId)
+          .maybeSingle();
+
+        if (!userRow) {
+          const { data: newRow, error: insertError } = await supabase
+            .from('users')
+            .insert({ id: authUserId, name: 'Novo Usuário', email: '' })
+            .select()
+            .single();
+          if (insertError) throw insertError;
+          userRow = newRow;
+        }
+
+        if (cancelled) return;
+
+        // 3) Carregar todos os dados
+        const [incomesRes, expensesRes, goalsRes, budgetsRes, notificationsRes] =
+          await Promise.all([
+            supabase
+              .from('incomes')
+              .select('*')
+              .eq('user_id', authUserId)
+              .order('date', { ascending: false }),
+            supabase
+              .from('expenses')
+              .select('*')
+              .eq('user_id', authUserId)
+              .order('date', { ascending: false }),
+            supabase
+              .from('goals')
+              .select('*')
+              .eq('user_id', authUserId)
+              .order('created_at', { ascending: false }),
+            supabase.from('budgets').select('*').eq('user_id', authUserId),
+            supabase
+              .from('notifications')
+              .select('*')
+              .eq('user_id', authUserId)
+              .order('date', { ascending: false }),
+          ]);
+
+        if (cancelled) return;
+
+        setUser(toUser(userRow));
+        setIncomes((incomesRes.data ?? []).map(toIncome));
+        setExpenses((expensesRes.data ?? []).map(toExpense));
+        setGoals((goalsRes.data ?? []).map(toGoal));
+        setBudgets((budgetsRes.data ?? []).map(toBudget));
+        setNotifications((notificationsRes.data ?? []).map(toNotification));
+        setIsSupabaseConnected(true);
+      } catch (err: any) {
+        console.error('Erro ao carregar dados do Supabase:', err);
+        setLoadError(err?.message || 'Erro inesperado ao conectar ao banco.');
+      } finally {
+        if (!cancelled) {
+          setIsHydrated(true);
+          setIsLoading(false);
+        }
+      }
+    };
+
+    loadData();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const toggleTheme = () => {
+    setTheme((prev) => (prev === 'light' ? 'dark' : 'light'));
+  };
+
+  // Metric Calculations
+  const filteredIncomesMonth = incomes.filter((inc) =>
+    inc.date.startsWith(selectedMonthYear)
+  );
+  const filteredExpensesMonth = expenses.filter((exp) =>
+    exp.date.startsWith(selectedMonthYear)
+  );
+
+  const totalIncomeMonth = filteredIncomesMonth.reduce(
+    (sum, inc) => sum + inc.amount,
+    0
+  );
+  const totalExpenseMonth = filteredExpensesMonth.reduce(
+    (sum, exp) => sum + exp.amount,
+    0
+  );
+
+  const allTimeIncome = incomes.reduce((sum, inc) => sum + inc.amount, 0);
+  const allTimeExpense = expenses.reduce((sum, exp) => sum + exp.amount, 0);
+  const currentBalance = allTimeIncome - allTimeExpense;
+
+  const accumulatedSavings = goals.reduce((sum, g) => sum + g.currentAmount, 0);
+
+  const savingsRatePercentage =
+    totalIncomeMonth > 0
+      ? Math.max(
+          0,
+          Math.round(
+            ((totalIncomeMonth - totalExpenseMonth) / totalIncomeMonth) * 100
+          )
+        )
+      : 0;
+
+  const projectedFutureBalance = currentBalance + (totalIncomeMonth - totalExpenseMonth);
+
+  // Group month expenses by category
+  const categoryExpensesMonth: Record<string, number> = {};
+  filteredExpensesMonth.forEach((exp) => {
+    categoryExpensesMonth[exp.category] =
+      (categoryExpensesMonth[exp.category] || 0) + exp.amount;
+  });
+
+  let topExpenseCategory = 'Nenhuma';
+  let maxSpent = 0;
+  Object.entries(categoryExpensesMonth).forEach(([cat, amount]) => {
+    if (amount > maxSpent) {
+      maxSpent = amount;
+      topExpenseCategory = cat;
+    }
+  });
+
+  // Helper: create notification in DB + state
+  const pushNotification = async (
+    n: Omit<NotificationItem, 'id' | 'userId' | 'read'>
+  ) => {
+    const item: NotificationItem = {
+      ...n,
+      id: crypto.randomUUID(),
+      userId: user.id,
+      read: false,
+    };
+    setNotifications((prev) => [item, ...prev]);
+    const { error } = await supabase.from('notifications').insert({
+      id: item.id,
+      user_id: user.id,
+      title: item.title,
+      message: item.message,
+      date: new Date().toISOString(),
+      type: item.type,
+      read: false,
+    });
+    if (error) console.error('Erro ao criar notificação:', error);
+    return item;
+  };
+
+  // Action handlers
+  const addIncome = async (newInc: Omit<Income, 'id' | 'userId'>) => {
+    const item: Income = {
+      ...newInc,
+      id: crypto.randomUUID(),
+      userId: user.id,
+    };
+    setIncomes((prev) => [item, ...prev]);
+    const { error } = await supabase.from('incomes').insert({
+      id: item.id,
+      user_id: user.id,
+      description: item.description,
+      amount: item.amount,
+      type: item.type,
+      date: item.date,
+      is_recurring: item.isRecurring,
+      notes: item.notes ?? null,
+    });
+    if (error) console.error('Erro ao inserir receita:', error);
+  };
+
+  const updateIncome = async (id: string, updated: Partial<Income>) => {
+    setIncomes((prev) =>
+      prev.map((inc) => (inc.id === id ? { ...inc, ...updated } : inc))
+    );
+    const { error } = await supabase
+      .from('incomes')
+      .update(incomeUpdatePayload(updated))
+      .eq('id', id);
+    if (error) console.error('Erro ao atualizar receita:', error);
+  };
+
+  const deleteIncome = async (id: string) => {
+    setIncomes((prev) => prev.filter((inc) => inc.id !== id));
+    const { error } = await supabase.from('incomes').delete().eq('id', id);
+    if (error) console.error('Erro ao excluir receita:', error);
+  };
+
+  const addExpense = async (newExp: Omit<Expense, 'id' | 'userId'>) => {
+    const item: Expense = {
+      ...newExp,
+      id: crypto.randomUUID(),
+      userId: user.id,
+    };
+    setExpenses((prev) => [item, ...prev]);
+
+    const { error } = await supabase.from('expenses').insert({
+      id: item.id,
+      user_id: user.id,
+      description: item.description,
+      amount: item.amount,
+      category: item.category,
+      type: item.type,
+      date: item.date,
+      notes: item.notes ?? null,
+    });
+    if (error) {
+      console.error('Erro ao inserir despesa:', error);
+      return;
+    }
+
+    // Check budget limit alert
+    const budgetObj = budgets.find((b) => b.category === newExp.category);
+    if (budgetObj && newExp.date.startsWith(selectedMonthYear)) {
+      const currentCategoryTotal =
+        expenses
+          .filter(
+            (e) =>
+              e.category === newExp.category &&
+              e.date.startsWith(selectedMonthYear)
+          )
+          .reduce((sum, e) => sum + e.amount, 0) + newExp.amount;
+      if (currentCategoryTotal > budgetObj.limit) {
+        await pushNotification({
+          title: '🚨 Limite de Orçamento Excedido!',
+          message: `A categoria "${newExp.category}" ultrapassou o limite de R$ ${budgetObj.limit.toFixed(
+            2
+          )}. Atual: R$ ${currentCategoryTotal.toFixed(2)}.`,
+          date: new Date().toLocaleString('pt-BR'),
+          type: 'alert',
+        });
+      }
+    }
+  };
+
+  const updateExpense = async (id: string, updated: Partial<Expense>) => {
+    setExpenses((prev) =>
+      prev.map((exp) => (exp.id === id ? { ...exp, ...updated } : exp))
+    );
+    const { error } = await supabase
+      .from('expenses')
+      .update(expenseUpdatePayload(updated))
+      .eq('id', id);
+    if (error) console.error('Erro ao atualizar despesa:', error);
+  };
+
+  const deleteExpense = async (id: string) => {
+    setExpenses((prev) => prev.filter((exp) => exp.id !== id));
+    const { error } = await supabase.from('expenses').delete().eq('id', id);
+    if (error) console.error('Erro ao excluir despesa:', error);
+  };
+
+  const addGoal = async (newGoal: Omit<Goal, 'id' | 'userId'>) => {
+    const item: Goal = {
+      ...newGoal,
+      id: crypto.randomUUID(),
+      userId: user.id,
+    };
+    setGoals((prev) => [...prev, item]);
+    const { error } = await supabase.from('goals').insert({
+      id: item.id,
+      user_id: user.id,
+      name: item.name,
+      target_amount: item.targetAmount,
+      current_amount: item.currentAmount,
+      deadline: item.deadline,
+      category: item.category,
+    });
+    if (error) console.error('Erro ao inserir meta:', error);
+  };
+
+  const updateGoal = async (id: string, updated: Partial<Goal>) => {
+    setGoals((prev) =>
+      prev.map((g) => (g.id === id ? { ...g, ...updated } : g))
+    );
+    const { error } = await supabase
+      .from('goals')
+      .update(goalUpdatePayload(updated))
+      .eq('id', id);
+    if (error) console.error('Erro ao atualizar meta:', error);
+  };
+
+  const depositGoal = async (id: string, amount: number) => {
+    if (amount <= 0) return;
+    const target = goals.find((g) => g.id === id);
+    const prevAmount = target?.currentAmount ?? 0;
+    const newAmount = prevAmount + amount;
+
+    setGoals((prev) =>
+      prev.map((g) => (g.id === id ? { ...g, currentAmount: newAmount } : g))
+    );
+
+    const { error } = await supabase
+      .from('goals')
+      .update({ current_amount: newAmount })
+      .eq('id', id);
+    if (error) {
+      console.error('Erro ao depositar na meta:', error);
+      return;
+    }
+
+    if (
+      target &&
+      newAmount >= target.targetAmount &&
+      prevAmount < target.targetAmount
+    ) {
+      await pushNotification({
+        title: '🎉 Meta Financeira Concluída!',
+        message: `Parabéns! Você alcançou 100% da meta "${target.name}"!`,
+        date: new Date().toLocaleString('pt-BR'),
+        type: 'success',
+      });
+    }
+  };
+
+  const deleteGoal = async (id: string) => {
+    setGoals((prev) => prev.filter((g) => g.id !== id));
+    const { error } = await supabase.from('goals').delete().eq('id', id);
+    if (error) console.error('Erro ao excluir meta:', error);
+  };
+
+  const setBudgetLimit = async (category: ExpenseCategory, limit: number) => {
+    const exists = budgets.find((b) => b.category === category);
+    if (exists) {
+      setBudgets((prev) =>
+        prev.map((b) => (b.category === category ? { ...b, limit } : b))
+      );
+      const { error } = await supabase
+        .from('budgets')
+        .update({ monthly_limit: limit })
+        .eq('id', exists.id);
+      if (error) console.error('Erro ao atualizar orçamento:', error);
+    } else {
+      const item: Budget = {
+        id: crypto.randomUUID(),
+        userId: user.id,
+        category,
+        limit,
+      };
+      setBudgets((prev) => [...prev, item]);
+      const { error } = await supabase.from('budgets').insert({
+        id: item.id,
+        user_id: user.id,
+        category,
+        monthly_limit: limit,
+      });
+      if (error) console.error('Erro ao criar orçamento:', error);
+    }
+  };
+
+  const markNotificationRead = async (id: string) => {
+    setNotifications((prev) =>
+      prev.map((n) => (n.id === id ? { ...n, read: true } : n))
+    );
+    const { error } = await supabase
+      .from('notifications')
+      .update({ read: true })
+      .eq('id', id);
+    if (error) console.error('Erro ao marcar notificação:', error);
+  };
+
+  const clearAllNotifications = async () => {
+    setNotifications([]);
+    const { error } = await supabase
+      .from('notifications')
+      .delete()
+      .eq('user_id', user.id);
+    if (error) console.error('Erro ao limpar notificações:', error);
+  };
+
+  // AI Assistant Call
+  const askAiAssistant = async (question: string) => {
+    const userMsg: AIMessage = {
+      id: 'msg_' + Date.now(),
+      sender: 'user',
+      text: question,
+      timestamp: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+    };
+
+    setAiMessages((prev) => [...prev, userMsg]);
+    setIsAiLoading(true);
+
+    try {
+      const financialContext = {
+        balance: currentBalance,
+        totalIncome: totalIncomeMonth,
+        totalExpense: totalExpenseMonth,
+        savings: totalIncomeMonth - totalExpenseMonth,
+        savingsRate: savingsRatePercentage,
+        categoryExpenses: categoryExpensesMonth,
+        topExpenseCategory,
+        goals,
+        budgets,
+      };
+
+      const res = await fetch('/api/ai/assistant', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ question, financialContext }),
+      });
+
+      const data = await res.json();
+      const botText = data.answer || data.error || 'Desculpe, ocorreu um erro na consulta.';
+
+      const assistantMsg: AIMessage = {
+        id: 'msg_bot_' + Date.now(),
+        sender: 'assistant',
+        text: botText,
+        timestamp: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+      };
+
+      setAiMessages((prev) => [...prev, assistantMsg]);
+    } catch (err: any) {
+      setAiMessages((prev) => [
+        ...prev,
+        {
+          id: 'msg_err_' + Date.now(),
+          sender: 'assistant',
+          text: 'Desculpe, não consegui conectar ao servidor de inteligência no momento. Tente novamente.',
+          timestamp: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+        },
+      ]);
+    } finally {
+      setIsAiLoading(false);
+    }
+  };
+
+  const refreshAiInsights = async () => {
+    try {
+      const financialContext = {
+        totalIncome: totalIncomeMonth,
+        totalExpense: totalExpenseMonth,
+        topExpenseCategory,
+        goals,
+        overBudgetCount: budgets.filter((b) => (categoryExpensesMonth[b.category] || 0) > b.limit).length,
+      };
+
+      const res = await fetch('/api/ai/insights', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ financialContext }),
+      });
+      const data = await res.json();
+      if (data.insights && Array.isArray(data.insights)) {
+        setAiInsights(data.insights);
+      }
+    } catch (e) {
+      console.warn('Erro ao atualizar insights:', e);
+    }
+  };
+
+  const resetDemoData = async () => {
+    if (!user.id) return;
+    await Promise.all([
+      supabase.from('incomes').delete().eq('user_id', user.id),
+      supabase.from('expenses').delete().eq('user_id', user.id),
+      supabase.from('goals').delete().eq('user_id', user.id),
+      supabase.from('budgets').delete().eq('user_id', user.id),
+      supabase.from('notifications').delete().eq('user_id', user.id),
+    ]);
+    setIncomes([]);
+    setExpenses([]);
+    setGoals([]);
+    setBudgets([]);
+    setNotifications([]);
+  };
+
+  return (
+    <FinancialContext.Provider
+      value={{
+        user,
+        setUser,
+        theme,
+        toggleTheme,
+        activeTab,
+        setActiveTab,
+        isLoading,
+        isSupabaseConnected,
+        loadError,
+        incomes,
+        expenses,
+        goals,
+        budgets,
+        notifications,
+        addIncome,
+        updateIncome,
+        deleteIncome,
+        addExpense,
+        updateExpense,
+        deleteExpense,
+        addGoal,
+        updateGoal,
+        depositGoal,
+        deleteGoal,
+        setBudgetLimit,
+        markNotificationRead,
+        clearAllNotifications,
+        selectedMonthYear,
+        setSelectedMonthYear,
+        aiMessages,
+        isAiLoading,
+        askAiAssistant,
+        aiInsights,
+        refreshAiInsights,
+        totalIncomeMonth,
+        totalExpenseMonth,
+        currentBalance,
+        accumulatedSavings,
+        savingsRatePercentage,
+        projectedFutureBalance,
+        topExpenseCategory,
+        categoryExpensesMonth,
+        resetDemoData,
+      }}
+    >
+      {children}
+    </FinancialContext.Provider>
+  );
+};
+
+export const useFinancial = () => {
+  const context = useContext(FinancialContext);
+  if (!context) {
+    throw new Error('useFinancial deve ser usado dentro de um FinancialProvider');
+  }
+  return context;
+};

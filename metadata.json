@@ -1,0 +1,6 @@
+{
+  "name": "Finanza - Gestão Financeira Pessoal",
+  "description": "Aplicativo completo e moderno de gestão financeira pessoal com controle de receitas, despesas, metas, orçamentos, relatórios visuais e assistente de IA.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
