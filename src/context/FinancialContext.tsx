@@ -22,6 +22,12 @@ import {
   toNotification,
 } from '../lib/supabase';
 
+export interface AuthResult {
+  ok: boolean;
+  error?: string;
+  needsConfirmation?: boolean;
+}
+
 interface FinancialContextType {
   user: User;
   setUser: React.Dispatch<React.SetStateAction<User>>;
@@ -29,6 +35,20 @@ interface FinancialContextType {
   toggleTheme: () => void;
   activeTab: ActiveTab;
   setActiveTab: (tab: ActiveTab) => void;
+
+  // Authentication
+  authStatus: 'loading' | 'guest' | 'email' | 'none';
+  isGuest: boolean;
+  authError: string | null;
+  authMessage: string | null;
+  loginWithEmail: (email: string, password: string) => Promise<AuthResult>;
+  signUpWithEmail: (
+    email: string,
+    password: string,
+    name?: string
+  ) => Promise<AuthResult>;
+  continueAsGuest: () => Promise<AuthResult>;
+  logout: () => Promise<void>;
 
   // Loading state
   isLoading: boolean;
@@ -155,6 +175,13 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({
   const [isSupabaseConnected, setIsSupabaseConnected] = useState<boolean>(false);
   const [loadError, setLoadError] = useState<string | null>(null);
 
+  // Authentication state
+  const [authStatus, setAuthStatus] = useState<
+    'loading' | 'guest' | 'email' | 'none'
+  >('loading');
+  const [authError, setAuthError] = useState<string | null>(null);
+  const [authMessage, setAuthMessage] = useState<string | null>(null);
+
   // Data state (começa vazio — dados vêm do Supabase)
   const [user, setUser] = useState<User>({
     id: '',
@@ -210,6 +237,82 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({
       });
   }, [user, isHydrated]);
 
+  // Helper: carrega perfil + dados da sessão autenticada atual
+  const hydrateFromSession = async () => {
+    const { data: sessionData } = await supabase.auth.getUser();
+    const authUser = sessionData?.user;
+    if (!authUser) {
+      setAuthStatus('none');
+      return;
+    }
+
+    const isAnon =
+      authUser.is_anonymous === true ||
+      authUser.app_metadata?.provider === 'anon';
+    setAuthStatus(isAnon ? 'guest' : 'email');
+
+    const authUserId = authUser.id;
+
+    // Obter ou criar o perfil do usuário
+    let { data: userRow } = await supabase
+      .from('users')
+      .select('*')
+      .eq('id', authUserId)
+      .maybeSingle();
+
+    if (!userRow) {
+      const { data: newRow, error: insertError } = await supabase
+        .from('users')
+        .insert({
+          id: authUserId,
+          name: isAnon ? 'Convidado' : 'Novo Usuário',
+          email: '',
+        })
+        .select()
+        .single();
+      if (insertError) throw insertError;
+      userRow = newRow;
+    }
+
+    // Carregar todos os dados
+    const [incomesRes, expensesRes, goalsRes, budgetsRes, notificationsRes] =
+      await Promise.all([
+        supabase
+          .from('incomes')
+          .select('*')
+          .eq('user_id', authUserId)
+          .order('date', { ascending: false }),
+        supabase
+          .from('expenses')
+          .select('*')
+          .eq('user_id', authUserId)
+          .order('date', { ascending: false }),
+        supabase
+          .from('goals')
+          .select('*')
+          .eq('user_id', authUserId)
+          .order('created_at', { ascending: false }),
+        supabase.from('budgets').select('*').eq('user_id', authUserId),
+        supabase
+          .from('notifications')
+          .select('*')
+          .eq('user_id', authUserId)
+          .order('date', { ascending: false }),
+      ]);
+
+    setUser({
+      ...toUser(userRow),
+      email: userRow.email || authUser.email || '',
+      isGuest: isAnon,
+    });
+    setIncomes((incomesRes.data ?? []).map(toIncome));
+    setExpenses((expensesRes.data ?? []).map(toExpense));
+    setGoals((goalsRes.data ?? []).map(toGoal));
+    setBudgets((budgetsRes.data ?? []).map(toBudget));
+    setNotifications((notificationsRes.data ?? []).map(toNotification));
+    setIsSupabaseConnected(true);
+  };
+
   // Load data from Supabase on mount
   useEffect(() => {
     let cancelled = false;
@@ -220,85 +323,15 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({
           setLoadError(
             'Banco de dados não configurado. Preencha VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY no arquivo .env'
           );
+          setAuthStatus('none');
           return;
         }
 
-        // 1) Garantir sessão (login anônimo)
-        let authUserId: string | undefined;
-        const { data: sessionData } = await supabase.auth.getUser();
-        authUserId = sessionData.user?.id;
-
-        if (!authUserId) {
-          const { data: anonData, error: anonError } =
-            await supabase.auth.signInAnonymously();
-          if (anonError) {
-            setLoadError(
-              'Falha ao entrar no banco. Verifique se "Sign In > Anonymous" está habilitado no Supabase (Authentication > Providers).'
-            );
-            return;
-          }
-          authUserId = anonData.user?.id;
-        }
-
-        if (!authUserId) throw new Error('Autenticação não retornou usuário.');
-
-        // 2) Obter ou criar o perfil do usuário
-        let { data: userRow } = await supabase
-          .from('users')
-          .select('*')
-          .eq('id', authUserId)
-          .maybeSingle();
-
-        if (!userRow) {
-          const { data: newRow, error: insertError } = await supabase
-            .from('users')
-            .insert({ id: authUserId, name: 'Novo Usuário', email: '' })
-            .select()
-            .single();
-          if (insertError) throw insertError;
-          userRow = newRow;
-        }
-
-        if (cancelled) return;
-
-        // 3) Carregar todos os dados
-        const [incomesRes, expensesRes, goalsRes, budgetsRes, notificationsRes] =
-          await Promise.all([
-            supabase
-              .from('incomes')
-              .select('*')
-              .eq('user_id', authUserId)
-              .order('date', { ascending: false }),
-            supabase
-              .from('expenses')
-              .select('*')
-              .eq('user_id', authUserId)
-              .order('date', { ascending: false }),
-            supabase
-              .from('goals')
-              .select('*')
-              .eq('user_id', authUserId)
-              .order('created_at', { ascending: false }),
-            supabase.from('budgets').select('*').eq('user_id', authUserId),
-            supabase
-              .from('notifications')
-              .select('*')
-              .eq('user_id', authUserId)
-              .order('date', { ascending: false }),
-          ]);
-
-        if (cancelled) return;
-
-        setUser(toUser(userRow));
-        setIncomes((incomesRes.data ?? []).map(toIncome));
-        setExpenses((expensesRes.data ?? []).map(toExpense));
-        setGoals((goalsRes.data ?? []).map(toGoal));
-        setBudgets((budgetsRes.data ?? []).map(toBudget));
-        setNotifications((notificationsRes.data ?? []).map(toNotification));
-        setIsSupabaseConnected(true);
+        await hydrateFromSession();
       } catch (err: any) {
         console.error('Erro ao carregar dados do Supabase:', err);
         setLoadError(err?.message || 'Erro inesperado ao conectar ao banco.');
+        setAuthStatus('none');
       } finally {
         if (!cancelled) {
           setIsHydrated(true);
@@ -313,6 +346,217 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({
       cancelled = true;
     };
   }, []);
+
+  // Snapshot dos dados do convidado para migrar para a conta de e-mail
+  const captureGuestData = (targetUserId: string) => ({
+    incomes: incomes.map((i) => ({
+      id: i.id,
+      user_id: targetUserId,
+      description: i.description,
+      amount: i.amount,
+      type: i.type,
+      date: i.date,
+      is_recurring: i.isRecurring,
+      notes: i.notes ?? null,
+    })),
+    expenses: expenses.map((e) => ({
+      id: e.id,
+      user_id: targetUserId,
+      description: e.description,
+      amount: e.amount,
+      category: e.category,
+      type: e.type,
+      date: e.date,
+      notes: e.notes ?? null,
+    })),
+    goals: goals.map((g) => ({
+      id: g.id,
+      user_id: targetUserId,
+      name: g.name,
+      target_amount: g.targetAmount,
+      current_amount: g.currentAmount,
+      deadline: g.deadline,
+      category: g.category,
+    })),
+    budgets: budgets.map((b) => ({
+      id: b.id,
+      user_id: targetUserId,
+      category: b.category,
+      monthly_limit: b.limit,
+    })),
+    notifications: notifications.map((n) => ({
+      id: n.id,
+      user_id: targetUserId,
+      title: n.title,
+      message: n.message,
+      date: new Date(n.date).toISOString(),
+      type: n.type,
+      read: n.read,
+    })),
+  });
+
+  const ensureUserRow = async (userId: string) => {
+    const { data: row } = await supabase
+      .from('users')
+      .select('id')
+      .eq('id', userId)
+      .maybeSingle();
+    if (!row) {
+      await supabase
+        .from('users')
+        .insert({ id: userId, name: 'Novo Usuário', email: '' });
+    }
+  };
+
+  const migrateGuestData = async (targetUserId: string) => {
+    await ensureUserRow(targetUserId);
+    const guest = captureGuestData(targetUserId);
+    const hasData =
+      guest.incomes.length > 0 ||
+      guest.expenses.length > 0 ||
+      guest.goals.length > 0 ||
+      guest.budgets.length > 0 ||
+      guest.notifications.length > 0;
+    if (!hasData) return;
+
+    // Evitar violação de unique(user_id, category) em budgets
+    let budgets = guest.budgets;
+    if (guest.budgets.length) {
+      const { data: existing } = await supabase
+        .from('budgets')
+        .select('category')
+        .eq('user_id', targetUserId);
+      const existingCats = new Set((existing ?? []).map((b) => b.category));
+      budgets = guest.budgets.filter((b) => !existingCats.has(b.category));
+    }
+
+    const tasks: PromiseLike<unknown>[] = [];
+    if (guest.incomes.length) tasks.push(supabase.from('incomes').insert(guest.incomes).then(() => undefined));
+    if (guest.expenses.length) tasks.push(supabase.from('expenses').insert(guest.expenses).then(() => undefined));
+    if (guest.goals.length) tasks.push(supabase.from('goals').insert(guest.goals).then(() => undefined));
+    if (budgets.length) tasks.push(supabase.from('budgets').insert(budgets).then(() => undefined));
+    if (guest.notifications.length)
+      tasks.push(supabase.from('notifications').insert(guest.notifications).then(() => undefined));
+    await Promise.all(tasks);
+
+    // Copiar nome e meta de renda do convidado para a nova conta
+    if (user.name && user.name !== 'Convidado' && user.name !== 'Novo Usuário') {
+      await supabase.from('users').update({ name: user.name }).eq('id', targetUserId);
+    }
+    if (user.monthlyIncomeGoal) {
+      await supabase
+        .from('users')
+        .update({ monthly_income_goal: user.monthlyIncomeGoal })
+        .eq('id', targetUserId);
+    }
+  };
+
+  const continueAsGuest = async (): Promise<AuthResult> => {
+    setAuthError(null);
+    setAuthMessage(null);
+    const { data, error } = await supabase.auth.signInAnonymously();
+    if (error || !data.user) {
+      const msg =
+        error?.message ||
+        'Não foi possível entrar como convidado. Verifique se o login anônimo está habilitado no Supabase.';
+      setAuthError(msg);
+      return { ok: false, error: msg };
+    }
+    try {
+      await hydrateFromSession();
+      setIsHydrated(true);
+      setIsLoading(false);
+      setLoadError(null);
+      return { ok: true };
+    } catch (err: any) {
+      const msg = err?.message || 'Erro ao carregar seus dados.';
+      setAuthError(msg);
+      return { ok: false, error: msg };
+    }
+  };
+
+  const signUpWithEmail = async (
+    email: string,
+    password: string,
+    name?: string
+  ): Promise<AuthResult> => {
+    setAuthError(null);
+    setAuthMessage(null);
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: { data: { full_name: name } },
+    });
+    if (error) {
+      let msg = error.message;
+      if (/already registered/i.test(msg)) {
+        msg = 'Este e-mail já está cadastrado. Faça login.';
+      }
+      setAuthError(msg);
+      return { ok: false, error: msg };
+    }
+    const needsConfirmation = !data.session;
+    if (needsConfirmation) {
+      setAuthMessage(
+        'Enviamos um link de confirmação para o seu e-mail. Confirme para ativar sua conta.'
+      );
+      return { ok: true, needsConfirmation: true };
+    }
+    if (data.user) {
+      await migrateGuestData(data.user.id);
+    }
+    await hydrateFromSession();
+    setIsHydrated(true);
+    setIsLoading(false);
+    setLoadError(null);
+    setAuthMessage('Conta criada com sucesso!');
+    return { ok: true, needsConfirmation: false };
+  };
+
+  const loginWithEmail = async (
+    email: string,
+    password: string
+  ): Promise<AuthResult> => {
+    setAuthError(null);
+    setAuthMessage(null);
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+    if (error) {
+      let msg = error.message;
+      if (/email not confirmed/i.test(msg) || error.code === 'email_not_confirmed') {
+        msg = 'E-mail ainda não confirmado. Verifique sua caixa de entrada.';
+      }
+      if (/invalid login credentials/i.test(msg)) {
+        msg = 'E-mail ou senha incorretos.';
+      }
+      setAuthError(msg);
+      return { ok: false, error: msg };
+    }
+    if (data.user) {
+      await migrateGuestData(data.user.id);
+    }
+    await hydrateFromSession();
+    setIsHydrated(true);
+    setIsLoading(false);
+    setLoadError(null);
+    setAuthMessage('Login realizado com sucesso!');
+    return { ok: true };
+  };
+
+  const logout = async () => {
+    await supabase.auth.signOut();
+    setUser({ id: '', name: '', email: '' });
+    setIncomes([]);
+    setExpenses([]);
+    setGoals([]);
+    setBudgets([]);
+    setNotifications([]);
+    setAuthStatus('none');
+    setAuthError(null);
+    setAuthMessage(null);
+  };
 
   const toggleTheme = () => {
     setTheme((prev) => (prev === 'light' ? 'dark' : 'light'));
@@ -719,6 +963,14 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({
         toggleTheme,
         activeTab,
         setActiveTab,
+        authStatus,
+        isGuest: authStatus === 'guest',
+        authError,
+        authMessage,
+        loginWithEmail,
+        signUpWithEmail,
+        continueAsGuest,
+        logout,
         isLoading,
         isSupabaseConnected,
         loadError,

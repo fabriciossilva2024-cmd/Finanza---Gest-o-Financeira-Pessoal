@@ -33,6 +33,7 @@ export interface User {
   email: string;
   avatarUrl?: string;
   monthlyIncomeGoal?: number;
+  isGuest?: boolean;
 }
 
 export interface Income {

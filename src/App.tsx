@@ -13,12 +13,17 @@ import { AIAssistantView } from './components/AIAssistantView';
 import { ProfileView } from './components/ProfileView';
 import { NotificationsDrawer } from './components/NotificationsDrawer';
 import { DatabaseSchemaModal } from './components/DatabaseSchemaModal';
+import { AuthScreen } from './components/AuthScreen';
 
 const AppContent: React.FC = () => {
-  const { activeTab, isLoading, loadError } = useFinancial();
+  const { activeTab, isLoading, loadError, authStatus } = useFinancial();
 
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [isDatabaseSchemaOpen, setIsDatabaseSchemaOpen] = useState(false);
+
+  if (authStatus === 'none') {
+    return <AuthScreen />;
+  }
 
   if (isLoading) {
     return (

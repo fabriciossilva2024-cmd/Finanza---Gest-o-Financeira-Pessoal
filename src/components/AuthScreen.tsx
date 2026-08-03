@@ -1,0 +1,52 @@
+import React, { useState } from 'react';
+import { Wallet, Sparkles } from 'lucide-react';
+import { AuthForm } from './AuthForm';
+
+export const AuthScreen: React.FC = () => {
+  const [mode, setMode] = useState<'login' | 'signup'>('login');
+
+  return (
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col items-center justify-center p-6 font-sans">
+      {/* Branding */}
+      <div className="w-full max-w-md flex flex-col items-center mb-6">
+        <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-emerald-600 to-teal-500 flex items-center justify-center text-white shadow-lg shadow-emerald-500/20 animate-pulse">
+          <Wallet className="w-9 h-9" />
+        </div>
+        <h1 className="mt-4 text-2xl font-extrabold tracking-tight">
+          Finanza
+          <span className="ml-2 text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300 align-middle">
+            PRO
+          </span>
+        </h1>
+        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400 font-medium">
+          Gestão Financeira Pessoal
+        </p>
+      </div>
+
+      {/* Card */}
+      <div className="w-full max-w-md p-6 sm:p-8 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xl space-y-4">
+        <div>
+          <h2 className="text-lg font-extrabold text-slate-900 dark:text-white">
+            {mode === 'login' ? 'Bem-vindo de volta!' : 'Crie sua conta'}
+          </h2>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+            {mode === 'login'
+              ? 'Entre para acessar seus dados em qualquer dispositivo.'
+              : 'Seus dados ficam sincronizados entre dispositivos.'}
+          </p>
+        </div>
+
+        <AuthForm
+          mode={mode}
+          onModeChange={setMode}
+          allowGuest
+        />
+      </div>
+
+      <p className="mt-6 max-w-md text-center text-[11px] text-slate-400 dark:text-slate-500 flex items-center gap-1.5 justify-center">
+        <Sparkles className="w-3.5 h-3.5 text-emerald-500" />
+        Análises e insights com IA Finanza sobre seus gastos, orçamentos e metas.
+      </p>
+    </div>
+  );
+};

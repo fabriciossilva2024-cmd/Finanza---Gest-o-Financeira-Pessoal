@@ -10,9 +10,12 @@ import {
   ChevronDown,
   User as UserIcon,
   RotateCcw,
+  LogOut,
+  Link as LinkIcon,
 } from 'lucide-react';
 import { useFinancial } from '../context/FinancialContext';
 import { formatCurrency } from '../utils/formatters';
+import { AuthModal } from './AuthModal';
 
 interface HeaderProps {
   onOpenNotifications: () => void;
@@ -25,6 +28,8 @@ export const Header: React.FC<HeaderProps> = ({
 }) => {
   const {
     user,
+    isGuest,
+    logout,
     theme,
     toggleTheme,
     notifications,
@@ -36,6 +41,7 @@ export const Header: React.FC<HeaderProps> = ({
   } = useFinancial();
 
   const [showProfileMenu, setShowProfileMenu] = useState(false);
+  const [showAuthModal, setShowAuthModal] = useState(false);
 
   const unreadCount = notifications.filter((n) => !n.read).length;
 
@@ -151,6 +157,11 @@ export const Header: React.FC<HeaderProps> = ({
               <span className="text-xs font-semibold text-slate-700 dark:text-slate-200 hidden md:inline-block max-w-[120px] truncate">
                 {user.name.split(' ')[0]}
               </span>
+              {isGuest && (
+                <span className="text-[9px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300">
+                  Convidado
+                </span>
+              )}
               <ChevronDown className="w-4 h-4 text-slate-400 hidden md:block" />
             </button>
 
@@ -161,9 +172,22 @@ export const Header: React.FC<HeaderProps> = ({
                     {user.name}
                   </p>
                   <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
-                    {user.email}
+                    {isGuest ? 'Conta de convidado' : user.email}
                   </p>
                 </div>
+
+                {isGuest && (
+                  <button
+                    onClick={() => {
+                      setShowProfileMenu(false);
+                      setShowAuthModal(true);
+                    }}
+                    className="w-full text-left px-4 py-2 text-xs font-medium text-emerald-700 dark:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 flex items-center gap-2"
+                  >
+                    <LinkIcon className="w-4 h-4" />
+                    Vincular e-mail para sincronizar
+                  </button>
+                )}
 
                 <button
                   onClick={() => {
@@ -186,11 +210,23 @@ export const Header: React.FC<HeaderProps> = ({
                   <RotateCcw className="w-4 h-4" />
                   Limpar Todos os Dados
                 </button>
+
+                <button
+                  onClick={() => {
+                    setShowProfileMenu(false);
+                    logout();
+                  }}
+                  className="w-full text-left px-4 py-2 text-xs font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2 border-t border-slate-100 dark:border-slate-800 mt-1"
+                >
+                  <LogOut className="w-4 h-4 text-slate-400" />
+                  Sair da conta
+                </button>
               </div>
             )}
           </div>
         </div>
       </div>
+      <AuthModal isOpen={showAuthModal} onClose={() => setShowAuthModal(false)} />
     </header>
   );
 };
