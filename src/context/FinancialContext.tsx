@@ -454,6 +454,11 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({
   const continueAsGuest = async (): Promise<AuthResult> => {
     setAuthError(null);
     setAuthMessage(null);
+    if (!isSupabaseConfigured) {
+      const msg = 'Banco de dados não configurado. Verifique VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY no arquivo .env.';
+      setAuthError(msg);
+      return { ok: false, error: msg };
+    }
     const { data, error } = await supabase.auth.signInAnonymously();
     if (error || !data.user) {
       const msg =
@@ -482,6 +487,11 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({
   ): Promise<AuthResult> => {
     setAuthError(null);
     setAuthMessage(null);
+    if (!isSupabaseConfigured) {
+      const msg = 'Banco de dados não configurado. Verifique VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY no arquivo .env.';
+      setAuthError(msg);
+      return { ok: false, error: msg };
+    }
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
@@ -519,6 +529,11 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({
   ): Promise<AuthResult> => {
     setAuthError(null);
     setAuthMessage(null);
+    if (!isSupabaseConfigured) {
+      const msg = 'Banco de dados não configurado. Verifique VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY no arquivo .env.';
+      setAuthError(msg);
+      return { ok: false, error: msg };
+    }
     const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password,

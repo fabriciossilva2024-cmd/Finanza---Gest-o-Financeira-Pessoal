@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
-import { Wallet, Sparkles } from 'lucide-react';
+import { Wallet, Sparkles, AlertTriangle } from 'lucide-react';
 import { AuthForm } from './AuthForm';
+import { useFinancial } from '../context/FinancialContext';
 
 export const AuthScreen: React.FC = () => {
   const [mode, setMode] = useState<'login' | 'signup'>('login');
+  const { loadError, isSupabaseConfigured } = useFinancial();
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col items-center justify-center p-6 font-sans">
@@ -25,6 +27,14 @@ export const AuthScreen: React.FC = () => {
 
       {/* Card */}
       <div className="w-full max-w-md p-6 sm:p-8 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xl space-y-4">
+        {!isSupabaseConfigured && (
+          <div className="p-3 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-300 text-xs font-semibold flex items-start gap-2">
+            <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+            <span>
+              Banco de dados não configurado. {loadError ?? 'Verifique VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY no arquivo .env.'}
+            </span>
+          </div>
+        )}
         <div>
           <h2 className="text-lg font-extrabold text-slate-900 dark:text-white">
             {mode === 'login' ? 'Bem-vindo de volta!' : 'Crie sua conta'}
