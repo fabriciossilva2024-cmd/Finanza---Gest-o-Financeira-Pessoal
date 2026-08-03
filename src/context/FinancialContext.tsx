@@ -52,6 +52,7 @@ interface FinancialContextType {
 
   // Loading state
   isLoading: boolean;
+  isSupabaseConfigured: boolean;
   isSupabaseConnected: boolean;
   loadError: string | null;
 
@@ -987,6 +988,7 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({
         continueAsGuest,
         logout,
         isLoading,
+        isSupabaseConfigured,
         isSupabaseConnected,
         loadError,
         incomes,
