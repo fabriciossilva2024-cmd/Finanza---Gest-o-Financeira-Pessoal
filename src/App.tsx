@@ -35,12 +35,7 @@ const AppContent: React.FC = () => {
             PRO
           </span>
         </h1>
-        <div className="flex items-center gap-3">
-          <div className="w-5 h-5 border-2 border-emerald-500/30 border-t-emerald-500 rounded-full animate-spin" />
-          <p className="text-xs font-semibold text-slate-400 dark:text-slate-500">
-            Conectando ao banco de dados...
-          </p>
-        </div>
+        <div className="w-10 h-10 border-[3px] border-emerald-500/20 border-t-emerald-500 rounded-full animate-spin" />
         {loadError && (
           <div className="max-w-md w-full p-4 rounded-2xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-300 text-xs leading-relaxed">
             <p className="font-bold mb-1">Erro na conexão</p>
