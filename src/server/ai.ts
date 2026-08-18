@@ -77,10 +77,9 @@ export async function handleAssistant(req: any, res: any) {
       response.text || 'Desculpe, não consegui analisar os dados no momento.';
     return res.json({ answer });
   } catch (error: any) {
-    console.error('Erro na API do Assistente Financeiro:', error);
+    console.error('Erro na API do Assistente Financeiro:', error?.message);
     return res.status(500).json({
       error: 'Ocorreu um erro ao processar sua solicitação com o assistente de IA.',
-      details: error.message,
     });
   }
 }

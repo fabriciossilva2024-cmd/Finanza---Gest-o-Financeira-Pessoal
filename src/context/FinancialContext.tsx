@@ -684,13 +684,14 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({
     const { error } = await supabase
       .from('incomes')
       .update(incomeUpdatePayload(updated))
-      .eq('id', id);
+      .eq('id', id)
+      .eq('user_id', user.id);
     if (error) console.error('Erro ao atualizar receita:', error);
   };
 
   const deleteIncome = async (id: string) => {
     setIncomes((prev) => prev.filter((inc) => inc.id !== id));
-    const { error } = await supabase.from('incomes').delete().eq('id', id);
+    const { error } = await supabase.from('incomes').delete().eq('id', id).eq('user_id', user.id);
     if (error) console.error('Erro ao excluir receita:', error);
   };
 
@@ -748,13 +749,14 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({
     const { error } = await supabase
       .from('expenses')
       .update(expenseUpdatePayload(updated))
-      .eq('id', id);
+      .eq('id', id)
+      .eq('user_id', user.id);
     if (error) console.error('Erro ao atualizar despesa:', error);
   };
 
   const deleteExpense = async (id: string) => {
     setExpenses((prev) => prev.filter((exp) => exp.id !== id));
-    const { error } = await supabase.from('expenses').delete().eq('id', id);
+    const { error } = await supabase.from('expenses').delete().eq('id', id).eq('user_id', user.id);
     if (error) console.error('Erro ao excluir despesa:', error);
   };
 
@@ -784,7 +786,8 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({
     const { error } = await supabase
       .from('goals')
       .update(goalUpdatePayload(updated))
-      .eq('id', id);
+      .eq('id', id)
+      .eq('user_id', user.id);
     if (error) console.error('Erro ao atualizar meta:', error);
   };
 
@@ -801,7 +804,8 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({
     const { error } = await supabase
       .from('goals')
       .update({ current_amount: newAmount })
-      .eq('id', id);
+      .eq('id', id)
+      .eq('user_id', user.id);
     if (error) {
       console.error('Erro ao depositar na meta:', error);
       return;
@@ -823,7 +827,7 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({
 
   const deleteGoal = async (id: string) => {
     setGoals((prev) => prev.filter((g) => g.id !== id));
-    const { error } = await supabase.from('goals').delete().eq('id', id);
+    const { error } = await supabase.from('goals').delete().eq('id', id).eq('user_id', user.id);
     if (error) console.error('Erro ao excluir meta:', error);
   };
 
@@ -836,7 +840,8 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({
       const { error } = await supabase
         .from('budgets')
         .update({ monthly_limit: limit })
-        .eq('id', exists.id);
+        .eq('id', exists.id)
+        .eq('user_id', user.id);
       if (error) console.error('Erro ao atualizar orçamento:', error);
     } else {
       const item: Budget = {
@@ -863,7 +868,8 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({
     const { error } = await supabase
       .from('notifications')
       .update({ read: true })
-      .eq('id', id);
+      .eq('id', id)
+      .eq('user_id', user.id);
     if (error) console.error('Erro ao marcar notificação:', error);
   };
 
