@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { X, ArrowRight } from 'lucide-react';
 import { AuthForm } from './AuthForm';
 
@@ -8,8 +8,6 @@ interface AuthModalProps {
 }
 
 export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
-  const [mode, setMode] = useState<'login' | 'signup'>('login');
-
   if (!isOpen) return null;
 
   return (
@@ -18,7 +16,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
         <div className="flex items-start justify-between gap-4">
           <div>
             <h3 className="text-lg font-bold text-slate-900 dark:text-white">
-              {mode === 'login' ? 'Entrar na sua conta' : 'Criar sua conta'}
+              Entrar na sua conta
             </h3>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 flex items-start gap-1.5">
               <ArrowRight className="w-3.5 h-3.5 text-emerald-500 shrink-0 mt-0.5" />
@@ -33,7 +31,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
           </button>
         </div>
 
-        <AuthForm mode={mode} onModeChange={setMode} onDone={onClose} />
+        <AuthForm onDone={onClose} />
       </div>
     </div>
   );

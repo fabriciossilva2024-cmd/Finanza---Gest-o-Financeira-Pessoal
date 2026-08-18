@@ -1,26 +1,19 @@
 import React, { useState } from 'react';
-import { Mail, Lock, User as UserIcon, LogIn, UserPlus, Check, Info, ShieldCheck } from 'lucide-react';
+import { Mail, Lock, LogIn, Check, Info, ShieldCheck } from 'lucide-react';
 import { useFinancial } from '../context/FinancialContext';
 
-type AuthMode = 'login' | 'signup';
-
 interface AuthFormProps {
-  mode: AuthMode;
-  onModeChange: (mode: AuthMode) => void;
   allowGuest?: boolean;
   onDone?: () => void;
 }
 
 export const AuthForm: React.FC<AuthFormProps> = ({
-  mode,
-  onModeChange,
   allowGuest = false,
   onDone,
 }) => {
-  const { loginWithEmail, signUpWithEmail, continueAsGuest, authError, authMessage } =
+  const { loginWithEmail, continueAsGuest, authError, authMessage } =
     useFinancial();
 
-  const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -30,11 +23,8 @@ export const AuthForm: React.FC<AuthFormProps> = ({
     if (isSubmitting) return;
     setIsSubmitting(true);
     try {
-      const res =
-        mode === 'signup'
-          ? await signUpWithEmail(email.trim(), password, name.trim() || undefined)
-          : await loginWithEmail(email.trim(), password);
-      if (res.ok && !res.needsConfirmation) {
+      const res = await loginWithEmail(email.trim(), password);
+      if (res.ok) {
         onDone?.();
       }
     } finally {
@@ -55,24 +45,6 @@ export const AuthForm: React.FC<AuthFormProps> = ({
 
   return (
     <div className="w-full space-y-4">
-      {/* Mode toggle */}
-      <div className="flex p-1 rounded-xl bg-slate-100 dark:bg-slate-800/70 border border-slate-200/80 dark:border-slate-700/50">
-        {(['login', 'signup'] as AuthMode[]).map((m) => (
-          <button
-            key={m}
-            type="button"
-            onClick={() => onModeChange(m)}
-            className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all ${
-              mode === m
-                ? 'bg-white dark:bg-slate-900 text-emerald-700 dark:text-emerald-300 shadow-sm'
-                : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
-            }`}
-          >
-            {m === 'login' ? 'Entrar' : 'Criar Conta'}
-          </button>
-        ))}
-      </div>
-
       {/* Error */}
       {authError && (
         <div className="p-3 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-300 text-xs font-semibold flex items-start gap-2">
@@ -90,24 +62,6 @@ export const AuthForm: React.FC<AuthFormProps> = ({
       )}
 
       <form onSubmit={handleSubmit} className="space-y-3">
-        {mode === 'signup' && (
-          <div>
-            <label className="text-xs font-bold text-slate-600 dark:text-slate-300 block mb-1">
-              Nome (opcional)
-            </label>
-            <div className="relative">
-              <UserIcon className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-              <input
-                type="text"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="Seu nome"
-                className="w-full pl-9 pr-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-medium outline-none focus:ring-2 focus:ring-emerald-500 dark:text-white placeholder:text-slate-400"
-              />
-            </div>
-          </div>
-        )}
-
         <div>
           <label className="text-xs font-bold text-slate-600 dark:text-slate-300 block mb-1">
             E-mail
@@ -150,16 +104,14 @@ export const AuthForm: React.FC<AuthFormProps> = ({
         >
           {isSubmitting ? (
             <span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
-          ) : mode === 'login' ? (
-            <LogIn className="w-4 h-4" />
           ) : (
-            <UserPlus className="w-4 h-4" />
+            <LogIn className="w-4 h-4" />
           )}
-          {mode === 'login' ? 'Entrar na minha conta' : 'Criar minha conta'}
+          Entrar na minha conta
         </button>
       </form>
 
-      {allowGuest && mode === 'login' && (
+      {allowGuest && (
         <>
           <div className="flex items-center gap-3">
             <div className="flex-1 h-px bg-slate-200 dark:bg-slate-700" />

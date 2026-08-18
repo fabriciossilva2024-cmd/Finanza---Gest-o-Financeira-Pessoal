@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import {
   User as UserIcon,
   Mail,
@@ -9,10 +9,36 @@ import {
   LogOut,
   X,
   Smartphone,
+  Camera,
+  Loader2,
 } from 'lucide-react';
 import { useFinancial } from '../context/FinancialContext';
 import { supabase } from '../lib/supabase';
 import { AuthModal } from './AuthModal';
+
+const fileToDataUrl = (file: File, maxSize = 256): Promise<string> =>
+  new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error('Falha ao ler o arquivo'));
+    reader.onload = () => {
+      const img = new Image();
+      img.onerror = () => reject(new Error('Imagem inválida'));
+      img.onload = () => {
+        const size = Math.min(img.width, img.height);
+        const sx = (img.width - size) / 2;
+        const sy = (img.height - size) / 2;
+        const canvas = document.createElement('canvas');
+        canvas.width = maxSize;
+        canvas.height = maxSize;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return reject(new Error('Canvas não suportado'));
+        ctx.drawImage(img, sx, sy, size, size, 0, 0, maxSize, maxSize);
+        resolve(canvas.toDataURL('image/jpeg', 0.85));
+      };
+      img.src = reader.result as string;
+    };
+    reader.readAsDataURL(file);
+  });
 
 export const ProfileView: React.FC = () => {
   const { user, setUser, isGuest, logout } = useFinancial();
@@ -25,6 +51,28 @@ export const ProfileView: React.FC = () => {
   const [savedSuccess, setSavedSuccess] = useState(false);
 
   const [showAuthModal, setShowAuthModal] = useState(false);
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [avatarUploading, setAvatarUploading] = useState(false);
+  const [avatarSaved, setAvatarSaved] = useState(false);
+
+  const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file || !file.type.startsWith('image/')) return;
+    setAvatarUploading(true);
+    setAvatarSaved(false);
+    try {
+      const dataUrl = await fileToDataUrl(file, 256);
+      setUser((prev) => ({ ...prev, avatarUrl: dataUrl }));
+      setAvatarSaved(true);
+      setTimeout(() => setAvatarSaved(false), 3000);
+    } catch {
+      setAvatarSaved(false);
+    } finally {
+      setAvatarUploading(false);
+    }
+  };
 
   // Password recovery
   const [showPasswordRecovery, setShowPasswordRecovery] = useState(false);
@@ -96,23 +144,57 @@ export const ProfileView: React.FC = () => {
     <div className="space-y-6 animate-fade-in max-w-3xl mx-auto">
       {/* Banner */}
       <div className="p-6 rounded-3xl bg-gradient-to-r from-slate-900 via-slate-800 to-emerald-950 text-white shadow-lg flex items-center gap-4">
-        <img
-          src={user.avatarUrl}
-          alt={user.name}
-          className="w-16 h-16 rounded-2xl object-cover ring-4 ring-emerald-500/40 shrink-0"
-        />
+        <div className="relative shrink-0">
+          {user.avatarUrl ? (
+            <img
+              src={user.avatarUrl}
+              alt={user.name}
+              className="w-16 h-16 rounded-2xl object-cover ring-4 ring-emerald-500/40"
+            />
+          ) : (
+            <div className="w-16 h-16 rounded-2xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center ring-4 ring-emerald-500/40">
+              <UserIcon className="w-8 h-8" />
+            </div>
+          )}
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={avatarUploading}
+            className="absolute -bottom-1 -right-1 w-7 h-7 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white flex items-center justify-center shadow-lg border-2 border-white dark:border-slate-900 transition-transform hover:scale-110 disabled:opacity-70"
+            title="Alterar foto de perfil"
+          >
+            {avatarUploading ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            ) : (
+              <Camera className="w-3.5 h-3.5" />
+            )}
+          </button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={handleAvatarChange}
+          />
+        </div>
         <div>
           <h1 className="text-xl sm:text-2xl font-extrabold">{user.name}</h1>
           <p className="text-xs text-slate-300">{isGuest ? '—' : user.email}</p>
-          <span
-            className={`inline-block mt-2 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
-              isGuest
-                ? 'bg-amber-500/20 text-amber-300'
-                : 'bg-emerald-500/20 text-emerald-300'
-            }`}
-          >
-            {isGuest ? 'Conta de Convidado' : 'Conta Sincronizada'}
-          </span>
+          {avatarSaved ? (
+            <span className="inline-flex items-center gap-1 mt-2 text-[10px] font-bold text-emerald-300">
+              <Check className="w-3 h-3" /> Foto atualizada!
+            </span>
+          ) : (
+            <span
+              className={`inline-block mt-2 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                isGuest
+                  ? 'bg-amber-500/20 text-amber-300'
+                  : 'bg-emerald-500/20 text-emerald-300'
+              }`}
+            >
+              {isGuest ? 'Conta de Convidado' : 'Conta Sincronizada'}
+            </span>
+          )}
         </div>
       </div>
 

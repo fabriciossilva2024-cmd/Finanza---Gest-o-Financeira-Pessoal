@@ -12,14 +12,12 @@ import { ReportsView } from './components/ReportsView';
 import { AIAssistantView } from './components/AIAssistantView';
 import { ProfileView } from './components/ProfileView';
 import { NotificationsDrawer } from './components/NotificationsDrawer';
-import { DatabaseSchemaModal } from './components/DatabaseSchemaModal';
 import { AuthScreen } from './components/AuthScreen';
 
 const AppContent: React.FC = () => {
   const { activeTab, isLoading, loadError, authStatus } = useFinancial();
 
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
-  const [isDatabaseSchemaOpen, setIsDatabaseSchemaOpen] = useState(false);
 
   if (authStatus === 'none') {
     return <AuthScreen />;
@@ -69,10 +67,7 @@ const AppContent: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col font-sans transition-colors selection:bg-emerald-500 selection:text-white">
-      <Header
-        onOpenNotifications={() => setIsNotificationsOpen(true)}
-        onOpenDatabaseSchema={() => setIsDatabaseSchemaOpen(true)}
-      />
+      <Header onOpenNotifications={() => setIsNotificationsOpen(true)} />
 
       <div className="flex-1 flex max-w-7xl w-full mx-auto pb-16 md:pb-0">
         <Sidebar />
@@ -84,11 +79,6 @@ const AppContent: React.FC = () => {
       <NotificationsDrawer
         isOpen={isNotificationsOpen}
         onClose={() => setIsNotificationsOpen(false)}
-      />
-
-      <DatabaseSchemaModal
-        isOpen={isDatabaseSchemaOpen}
-        onClose={() => setIsDatabaseSchemaOpen(false)}
       />
     </div>
   );

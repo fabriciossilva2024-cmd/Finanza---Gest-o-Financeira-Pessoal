@@ -65,7 +65,7 @@ export async function handleAssistant(req: any, res: any) {
     }
 
     const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
+      model: 'gemini-flash-latest',
       contents: question,
       config: {
         systemInstruction: ASSISTANT_SYSTEM(financialContext),
@@ -95,7 +95,7 @@ export async function handleInsights(req: any, res: any) {
     }
 
     const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
+      model: 'gemini-flash-latest',
       contents: 'Gere 3 insights financeiros inteligentes e curtos para o meu painel.',
       config: {
         systemInstruction: INSIGHTS_SYSTEM(financialContext),

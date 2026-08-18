@@ -1,10 +1,10 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { Wallet, Sparkles, AlertTriangle } from 'lucide-react';
 import { AuthForm } from './AuthForm';
 import { useFinancial } from '../context/FinancialContext';
+import { SUPABASE_URL } from '../lib/supabase';
 
 export const AuthScreen: React.FC = () => {
-  const [mode, setMode] = useState<'login' | 'signup'>('login');
   const { loadError, isSupabaseConfigured } = useFinancial();
 
   return (
@@ -17,7 +17,7 @@ export const AuthScreen: React.FC = () => {
         <h1 className="mt-4 text-2xl font-extrabold tracking-tight">
           Finanza
           <span className="ml-2 text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300 align-middle">
-            PRO
+            PRO [B4]
           </span>
         </h1>
         <p className="mt-1 text-sm text-slate-500 dark:text-slate-400 font-medium">
@@ -37,26 +37,25 @@ export const AuthScreen: React.FC = () => {
         )}
         <div>
           <h2 className="text-lg font-extrabold text-slate-900 dark:text-white">
-            {mode === 'login' ? 'Bem-vindo de volta!' : 'Crie sua conta'}
+            SEJA BEM VINDO AO FINANZA PRO
           </h2>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-            {mode === 'login'
-              ? 'Entre para acessar seus dados em qualquer dispositivo.'
-              : 'Seus dados ficam sincronizados entre dispositivos.'}
+            Entre para acessar seus dados em qualquer dispositivo.
           </p>
         </div>
 
-        <AuthForm
-          mode={mode}
-          onModeChange={setMode}
-          allowGuest
-        />
+        <AuthForm allowGuest />
       </div>
 
       <p className="mt-6 max-w-md text-center text-[11px] text-slate-400 dark:text-slate-500 flex items-center gap-1.5 justify-center">
         <Sparkles className="w-3.5 h-3.5 text-emerald-500" />
         Análises e insights com IA Finanza sobre seus gastos, orçamentos e metas.
       </p>
+
+      {/* DEBUG - remover após diagnóstico */}
+      <div className="mt-4 w-full max-w-md text-center text-[10px] text-slate-400 dark:text-slate-600 font-mono break-all">
+        debug: configured={String(isSupabaseConfigured)} url={SUPABASE_URL} build=B4
+      </div>
     </div>
   );
 };
