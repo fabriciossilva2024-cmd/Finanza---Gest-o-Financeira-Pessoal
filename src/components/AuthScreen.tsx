@@ -2,7 +2,6 @@ import React from 'react';
 import { Wallet, Sparkles, AlertTriangle } from 'lucide-react';
 import { AuthForm } from './AuthForm';
 import { useFinancial } from '../context/FinancialContext';
-import { SUPABASE_URL } from '../lib/supabase';
 
 export const AuthScreen: React.FC = () => {
   const { loadError, isSupabaseConfigured } = useFinancial();
@@ -17,7 +16,7 @@ export const AuthScreen: React.FC = () => {
         <h1 className="mt-4 text-2xl font-extrabold tracking-tight">
           Finanza
           <span className="ml-2 text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300 align-middle">
-            PRO [B4]
+            PRO
           </span>
         </h1>
         <p className="mt-1 text-sm text-slate-500 dark:text-slate-400 font-medium">
@@ -52,10 +51,7 @@ export const AuthScreen: React.FC = () => {
         Análises e insights com IA Finanza sobre seus gastos, orçamentos e metas.
       </p>
 
-      {/* DEBUG - remover após diagnóstico */}
-      <div className="mt-4 w-full max-w-md text-center text-[10px] text-slate-400 dark:text-slate-600 font-mono break-all">
-        debug: configured={String(isSupabaseConfigured)} url={SUPABASE_URL} build=B4
-      </div>
+
     </div>
   );
 };
