@@ -8,13 +8,14 @@ import {
   Tag,
   CreditCard,
   Calendar,
+  Printer,
 } from 'lucide-react';
 import { useFinancial } from '../context/FinancialContext';
 import { formatCurrency, formatDateBR, getCategoryBadgeColor } from '../utils/formatters';
 import { Expense, ExpenseCategory, ExpenseType } from '../types';
 
 export const ExpenseView: React.FC = () => {
-  const { expenses, addExpense, updateExpense, deleteExpense, totalExpenseMonth } =
+  const { expenses, addExpense, updateExpense, deleteExpense, totalExpenseMonth, selectedMonthYear, user } =
     useFinancial();
 
   const [searchTerm, setSearchTerm] = useState('');
@@ -54,6 +55,16 @@ export const ExpenseView: React.FC = () => {
     setNotes(exp.notes || '');
     setShowModal(true);
   };
+
+  const handlePrintReport = () => {
+    window.print();
+  };
+
+  const [reportMonth, reportYear] = selectedMonthYear.split('-');
+  const monthName = new Date(parseInt(reportYear), parseInt(reportMonth) - 1).toLocaleDateString('pt-BR', {
+    month: 'long',
+    year: 'numeric',
+  });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -117,7 +128,7 @@ export const ExpenseView: React.FC = () => {
   return (
     <div className="space-y-6 animate-fade-in">
       {/* Header Banner */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-6 rounded-3xl bg-gradient-to-r from-rose-600 via-rose-500 to-amber-600 text-white shadow-lg">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-6 rounded-3xl bg-gradient-to-r from-rose-600 via-rose-500 to-amber-600 text-white shadow-lg print:hidden">
         <div>
           <div className="flex items-center gap-2 mb-1">
             <span className="p-1.5 rounded-lg bg-white/20">
@@ -132,13 +143,20 @@ export const ExpenseView: React.FC = () => {
           </p>
         </div>
 
-        <div className="flex items-center gap-4 bg-white/10 p-4 rounded-2xl border border-white/20">
+        <div className="flex items-center gap-3 bg-white/10 p-4 rounded-2xl border border-white/20 print:hidden">
           <div>
             <p className="text-[11px] font-bold text-rose-100 uppercase">
               Total no Mês
             </p>
             <p className="text-xl font-black">{formatCurrency(totalExpenseMonth)}</p>
           </div>
+          <button
+            onClick={handlePrintReport}
+            className="p-2.5 rounded-xl bg-white/20 hover:bg-white/30 text-white font-bold text-xs transition-all flex items-center gap-1.5"
+            title="Imprimir Relatório de Despesas"
+          >
+            <Printer className="w-4 h-4" />
+          </button>
           <button
             onClick={openNewModal}
             className="px-4 py-2.5 rounded-xl bg-white text-rose-700 hover:bg-rose-50 font-bold text-xs shadow-md transition-transform hover:scale-105 flex items-center gap-1.5"
@@ -149,7 +167,7 @@ export const ExpenseView: React.FC = () => {
       </div>
 
       {/* Filter and Search Bar */}
-      <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-sm space-y-3">
+      <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-sm space-y-3 print:hidden">
         <div className="flex flex-col sm:flex-row gap-3 items-center justify-between">
           {/* Search */}
           <div className="relative w-full sm:w-80">
@@ -214,6 +232,34 @@ export const ExpenseView: React.FC = () => {
         </div>
       </div>
 
+      {/* Print-only Report Header */}
+      <div className="hidden print:block print:mb-6">
+        <div className="text-center border-b-2 border-slate-300 pb-4 mb-4">
+          <h1 className="text-2xl font-extrabold text-slate-900">
+            Relatório de Despesas
+          </h1>
+          <p className="text-sm text-slate-600 mt-1">
+            Finanza PRO — Gestão Financeira Pessoal
+          </p>
+          <p className="text-xs text-slate-500 mt-1">
+            Período: {monthName} | Gerado por: {user?.name || 'Usuário'}
+          </p>
+          <p className="text-xs text-slate-400 mt-1">
+            Data de impressão: {new Date().toLocaleDateString('pt-BR')} às {new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+          </p>
+        </div>
+        <div className="flex justify-between items-center mb-4">
+          <div>
+            <p className="text-xs font-bold text-slate-500 uppercase">Total de Despesas no Mês</p>
+            <p className="text-xl font-black text-rose-600">- {formatCurrency(totalExpenseMonth)}</p>
+          </div>
+          <div className="text-right">
+            <p className="text-xs font-bold text-slate-500 uppercase">Quantidade de Lançamentos</p>
+            <p className="text-xl font-black text-slate-900">{filteredExpenses.length}</p>
+          </div>
+        </div>
+      </div>
+
       {/* Expenses Table */}
       <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
@@ -225,7 +271,7 @@ export const ExpenseView: React.FC = () => {
                 <th className="p-4">Tipo</th>
                 <th className="p-4">Data</th>
                 <th className="p-4">Valor</th>
-                <th className="p-4 text-right pr-6">Ações</th>
+                <th className="p-4 text-right pr-6 print:hidden">Ações</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-xs">
@@ -269,7 +315,7 @@ export const ExpenseView: React.FC = () => {
                         - {formatCurrency(exp.amount)}
                       </td>
 
-                      <td className="p-4 text-right pr-6">
+                      <td className="p-4 text-right pr-6 print:hidden">
                         <div className="flex items-center justify-end gap-2">
                           <button
                             onClick={() => openEditModal(exp)}
@@ -300,6 +346,17 @@ export const ExpenseView: React.FC = () => {
             </tbody>
           </table>
         </div>
+      </div>
+
+      {/* Print-only Report Footer */}
+      <div className="hidden print:block print:mt-8 print:border-t print:border-slate-300 print:pt-4">
+        <div className="flex justify-between text-xs text-slate-500">
+          <p>Finanza PRO — Relatório de Despesas</p>
+          <p>Documento gerado automaticamente</p>
+        </div>
+        <p className="text-[10px] text-slate-400 mt-2 text-center">
+          Este relatório é uma representação dos dados cadastrados no sistema. Para fins oficiais, consulte o extrato completo no painel.
+        </p>
       </div>
 
       {/* Add / Edit Expense Modal */}
