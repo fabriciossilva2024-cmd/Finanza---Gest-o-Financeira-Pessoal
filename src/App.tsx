@@ -25,13 +25,22 @@ const AppContent: React.FC = () => {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col items-center justify-center gap-4 font-sans p-6">
-        <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-emerald-600 to-teal-500 flex items-center justify-center text-white shadow-lg shadow-emerald-500/20 animate-pulse">
-          <Wallet className="w-8 h-8" />
+      <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col items-center justify-center gap-5 font-sans p-6">
+        <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-emerald-600 to-teal-500 flex items-center justify-center text-white shadow-lg shadow-emerald-500/20">
+          <Wallet className="w-9 h-9" />
         </div>
-        <p className="text-sm font-semibold text-slate-500 dark:text-slate-400">
-          Conectando ao banco de dados...
-        </p>
+        <h1 className="text-xl font-extrabold tracking-tight">
+          Finanza
+          <span className="ml-2 text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300 align-middle">
+            PRO
+          </span>
+        </h1>
+        <div className="flex items-center gap-3">
+          <div className="w-5 h-5 border-2 border-emerald-500/30 border-t-emerald-500 rounded-full animate-spin" />
+          <p className="text-xs font-semibold text-slate-400 dark:text-slate-500">
+            Conectando ao banco de dados...
+          </p>
+        </div>
         {loadError && (
           <div className="max-w-md w-full p-4 rounded-2xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-300 text-xs leading-relaxed">
             <p className="font-bold mb-1">Erro na conexão</p>
