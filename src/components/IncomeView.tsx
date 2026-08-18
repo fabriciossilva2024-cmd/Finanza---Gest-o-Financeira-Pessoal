@@ -8,14 +8,22 @@ import {
   Repeat,
   DollarSign,
   Calendar,
+  Printer,
 } from 'lucide-react';
 import { useFinancial } from '../context/FinancialContext';
 import { formatCurrency, formatDateBR } from '../utils/formatters';
 import { Income, IncomeType } from '../types';
 
 export const IncomeView: React.FC = () => {
-  const { incomes, addIncome, updateIncome, deleteIncome, totalIncomeMonth } =
-    useFinancial();
+  const {
+    incomes,
+    addIncome,
+    updateIncome,
+    deleteIncome,
+    totalIncomeMonth,
+    selectedMonthYear,
+    user,
+  } = useFinancial();
 
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedTypeFilter, setSelectedTypeFilter] = useState<string>('todos');
@@ -51,6 +59,16 @@ export const IncomeView: React.FC = () => {
     setNotes(inc.notes || '');
     setShowAddModal(true);
   };
+
+  const handlePrintReport = () => {
+    window.print();
+  };
+
+  const [reportMonth, reportYear] = selectedMonthYear.split('-');
+  const monthName = new Date(parseInt(reportYear), parseInt(reportMonth) - 1).toLocaleDateString('pt-BR', {
+    month: 'long',
+    year: 'numeric',
+  });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -103,7 +121,7 @@ export const IncomeView: React.FC = () => {
   return (
     <div className="space-y-6 animate-fade-in">
       {/* Header Banner */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-6 rounded-3xl bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-lg">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-6 rounded-3xl bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-lg print:hidden">
         <div>
           <div className="flex items-center gap-2 mb-1">
             <span className="p-1.5 rounded-lg bg-white/20">
@@ -118,13 +136,20 @@ export const IncomeView: React.FC = () => {
           </p>
         </div>
 
-        <div className="flex items-center gap-4 bg-white/10 p-4 rounded-2xl border border-white/20">
+        <div className="flex items-center gap-3 bg-white/10 p-4 rounded-2xl border border-white/20 print:hidden">
           <div>
             <p className="text-[11px] font-bold text-emerald-100 uppercase">
               Total no Mês
             </p>
             <p className="text-xl font-black">{formatCurrency(totalIncomeMonth)}</p>
           </div>
+          <button
+            onClick={handlePrintReport}
+            className="p-2.5 rounded-xl bg-white/20 hover:bg-white/30 text-white font-bold text-xs transition-all flex items-center gap-1.5"
+            title="Imprimir Relatório de Receitas"
+          >
+            <Printer className="w-4 h-4" />
+          </button>
           <button
             onClick={openNewModal}
             className="px-4 py-2.5 rounded-xl bg-white text-emerald-700 hover:bg-emerald-50 font-bold text-xs shadow-md transition-transform hover:scale-105 flex items-center gap-1.5"
@@ -135,7 +160,7 @@ export const IncomeView: React.FC = () => {
       </div>
 
       {/* Filter and Search Bar */}
-      <div className="flex flex-col sm:flex-row gap-3 items-center justify-between p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-sm">
+      <div className="flex flex-col sm:flex-row gap-3 items-center justify-between p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-sm print:hidden">
         {/* Search */}
         <div className="relative w-full sm:w-72">
           <Search className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
@@ -179,6 +204,34 @@ export const IncomeView: React.FC = () => {
         </div>
       </div>
 
+      {/* Print-only Report Header */}
+      <div className="hidden print:block print:mb-6">
+        <div className="text-center border-b-2 border-slate-300 pb-4 mb-4">
+          <h1 className="text-2xl font-extrabold text-slate-900">
+            Relatório de Receitas
+          </h1>
+          <p className="text-sm text-slate-600 mt-1">
+            Finanza PRO — Gestão Financeira Pessoal
+          </p>
+          <p className="text-xs text-slate-500 mt-1">
+            Período: {monthName} | Gerado por: {user?.name || 'Usuário'}
+          </p>
+          <p className="text-xs text-slate-400 mt-1">
+            Data de impressão: {new Date().toLocaleDateString('pt-BR')} às {new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+          </p>
+        </div>
+        <div className="flex justify-between items-center mb-4">
+          <div>
+            <p className="text-xs font-bold text-slate-500 uppercase">Total de Receitas no Mês</p>
+            <p className="text-xl font-black text-emerald-600">+ {formatCurrency(totalIncomeMonth)}</p>
+          </div>
+          <div className="text-right">
+            <p className="text-xs font-bold text-slate-500 uppercase">Quantidade de Lançamentos</p>
+            <p className="text-xl font-black text-slate-900">{filteredIncomes.length}</p>
+          </div>
+        </div>
+      </div>
+
       {/* Income Table */}
       <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
@@ -190,7 +243,7 @@ export const IncomeView: React.FC = () => {
                 <th className="p-4">Data</th>
                 <th className="p-4">Recorrente</th>
                 <th className="p-4">Valor</th>
-                <th className="p-4 text-right pr-6">Ações</th>
+                <th className="p-4 text-right pr-6 print:hidden">Ações</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-xs">
@@ -235,7 +288,7 @@ export const IncomeView: React.FC = () => {
                       + {formatCurrency(inc.amount)}
                     </td>
 
-                    <td className="p-4 text-right pr-6">
+                    <td className="p-4 text-right pr-6 print:hidden">
                       <div className="flex items-center justify-end gap-2">
                         <button
                           onClick={() => openEditModal(inc)}
@@ -265,6 +318,17 @@ export const IncomeView: React.FC = () => {
             </tbody>
           </table>
         </div>
+      </div>
+
+      {/* Print-only Report Footer */}
+      <div className="hidden print:block print:mt-8 print:border-t print:border-slate-300 print:pt-4">
+        <div className="flex justify-between text-xs text-slate-500">
+          <p>Finanza PRO — Relatório de Receitas</p>
+          <p>Documento gerado automaticamente</p>
+        </div>
+        <p className="text-[10px] text-slate-400 mt-2 text-center">
+          Este relatório é uma representação dos dados cadastrados no sistema. Para fins oficiais, consulte o extrato completo no painel.
+        </p>
       </div>
 
       {/* Add / Edit Income Modal */}
